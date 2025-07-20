@@ -13,7 +13,7 @@ from core import (
     run_prerequisites_script,
     run_train_script,
 )
-from rvc.configs.config import get_gpu_info, get_number_of_gpus, max_vram_gpu
+from rvc.configs.config import get_gpu_info, get_number_of_gpus
 from rvc.lib.utils import format_title
 from tabs.settings.sections.restart import stop_train
 
@@ -321,7 +321,7 @@ def train_tab():
                     choices=["RVC", "Applio"],
                     value="RVC",
                     interactive=True,
-                    visible=False,  # to be visible once pretraineds are ready
+                    visible=True,  # exposed by default for user selection
                 )
             with gr.Column():
                 sampling_rate = gr.Radio(
@@ -339,7 +339,7 @@ def train_tab():
                     choices=["HiFi-GAN", "MRF HiFi-GAN", "RefineGAN"],
                     value="HiFi-GAN",
                     interactive=False,
-                    visible=False,  # to be visible once pretraineds are ready
+                    visible=True,  # exposed by default for user selection
                 )
         with gr.Accordion(
             i18n("Advanced Settings"),
@@ -624,6 +624,18 @@ def train_tab():
                 ),
                 interactive=True,
             )
+            # Segment size
+            segment_size = gr.Slider(
+                12800,
+                51200,
+                12800,
+                step=1280,
+                label=i18n("Segment Size"),
+                info=i18n(
+                    "Audio segment size (in samples) used during training. Larger values give more context but require more VRAM."
+                ),
+                interactive=True,
+            )
         with gr.Accordion(i18n("Advanced Settings"), open=False):
             with gr.Row():
                 with gr.Column():
@@ -783,6 +795,7 @@ def train_tab():
                     sampling_rate,
                     batch_size,
                     gpu,
+                    segment_size,
                     overtraining_detector,
                     overtraining_threshold,
                     pretrained,

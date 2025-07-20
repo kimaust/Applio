@@ -53,14 +53,15 @@ pretrainD = sys.argv[5]
 gpus = sys.argv[6]
 batch_size = int(sys.argv[7])
 sample_rate = int(sys.argv[8])
-save_only_latest = strtobool(sys.argv[9])
-save_every_weights = strtobool(sys.argv[10])
-cache_data_in_gpu = strtobool(sys.argv[11])
-overtraining_detector = strtobool(sys.argv[12])
-overtraining_threshold = int(sys.argv[13])
-cleanup = strtobool(sys.argv[14])
-vocoder = sys.argv[15]
-checkpointing = strtobool(sys.argv[16])
+segment_size = int(sys.argv[9])
+save_only_latest = strtobool(sys.argv[10])
+save_every_weights = strtobool(sys.argv[11])
+cache_data_in_gpu = strtobool(sys.argv[12])
+overtraining_detector = strtobool(sys.argv[13])
+overtraining_threshold = int(sys.argv[14])
+cleanup = strtobool(sys.argv[15])
+vocoder = sys.argv[16]
+checkpointing = strtobool(sys.argv[17])
 # experimental settings
 randomized = True
 optimizer = "AdamW"
@@ -103,6 +104,17 @@ except FileNotFoundError:
     sys.exit(1)
 
 config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
+
+# Override segment_size with user-specified value
+if 12800 <= segment_size <= 51200:
+    config.train.segment_size = segment_size
+else:
+    print(f"Provided segment_size {segment_size} is out of allowed range (12800-51200). Using default {config.train.segment_size}.")
+
+# Inform the user of the segment size being used
+print(
+    f"[Applio Train] Segment size: {config.train.segment_size} samples (~{config.train.segment_size // config.data.hop_length} frames)"
+)
 
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = True
