@@ -197,10 +197,9 @@ class VoiceConverter:
         model_path: str,
         index_path: str,
         pitch: int = 0,
-        f0_file: str = None,
         f0_method: str = "rmvpe",
         index_rate: float = 0.75,
-        volume_envelope: float = 1,
+        volume_envelope: float = 1.0,
         protect: float = 0.5,
         hop_length: int = 128,
         split_audio: bool = False,
@@ -214,6 +213,7 @@ class VoiceConverter:
         post_process: bool = False,
         resample_sr: int = 0,
         sid: int = 0,
+        auto_pitch: bool = False,
         **kwargs,
     ):
         """
@@ -240,6 +240,7 @@ class VoiceConverter:
             embedder_model_custom (str): Path to the custom embedder model.
             resample_sr (int, optional): Resample sampling rate. Default is 0.
             sid (int, optional): Speaker ID. Default is 0.
+            auto_pitch: Automatic pitch adjustment option. Default is False.
             **kwargs: Additional keyword arguments.
         """
         if not model_path:
@@ -300,10 +301,9 @@ class VoiceConverter:
                     volume_envelope=volume_envelope,
                     version=self.version,
                     protect=protect,
-                    hop_length=hop_length,
                     f0_autotune=f0_autotune,
                     f0_autotune_strength=f0_autotune_strength,
-                    f0_file=f0_file,
+                    auto_pitch=auto_pitch,
                 )
                 converted_chunks.append(audio_opt)
                 if split_audio:

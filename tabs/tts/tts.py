@@ -192,7 +192,7 @@ def tts_tab():
                     "Clean your audio output using noise detection algorithms, recommended for speaking audios."
                 ),
                 visible=True,
-                value=True,
+                value=False,
                 interactive=True,
             )
             clean_strength = gr.Slider(
@@ -204,6 +204,12 @@ def tts_tab():
                 ),
                 visible=True,
                 value=0.5,
+                interactive=True,
+            )
+            auto_pitch = gr.Checkbox(
+                label=i18n("Auto-pitch"),
+                info=i18n("Change pitch automatically based on voice model."),
+                value=False,
                 interactive=True,
             )
             pitch = gr.Slider(
@@ -247,17 +253,6 @@ def tts_tab():
                 value=0.5,
                 interactive=True,
             )
-            hop_length = gr.Slider(
-                minimum=1,
-                maximum=512,
-                step=1,
-                label=i18n("Hop Length"),
-                info=i18n(
-                    "Denotes the duration it takes for the system to transition to a significant pitch change. Smaller hop lengths require more time for inference but tend to yield higher pitch accuracy."
-                ),
-                value=128,
-                interactive=True,
-            )
             f0_method = gr.Radio(
                 label=i18n("Pitch extraction algorithm"),
                 info=i18n(
@@ -268,7 +263,6 @@ def tts_tab():
                     "crepe-tiny",
                     "rmvpe",
                     "fcpe",
-                    "hybrid[rmvpe+fcpe]",
                 ],
                 value="rmvpe",
                 interactive=True,
@@ -278,6 +272,7 @@ def tts_tab():
                 info=i18n("Model used for learning speaker embedding."),
                 choices=[
                     "contentvec",
+                    "spin",
                     "chinese-hubert-base",
                     "japanese-hubert-base",
                     "korean-hubert-base",
@@ -399,7 +394,6 @@ def tts_tab():
             index_rate,
             rms_mix_rate,
             protect,
-            hop_length,
             f0_method,
             output_tts_path,
             output_rvc_path,
@@ -411,10 +405,10 @@ def tts_tab():
             clean_audio,
             clean_strength,
             export_format,
-            f0_file,
             embedder_model,
             embedder_model_custom,
             sid,
+            auto_pitch,
         ],
         outputs=[vc_output1, vc_output2],
     )
