@@ -53,13 +53,20 @@ def extract_model(
         with open(os.path.join(now_dir, "assets", "config.json"), "r") as f:
             data = json.load(f)
             model_author = data.get("model_author", None)
+            precision = data.get("precision", "fp32").lower()
+            use_fp32 = precision == "fp32"
 
-        opt = OrderedDict(
-            weight={
-                # key: value.half() for key, value in ckpt.items() if "enc_q" not in key
+        if use_fp32:
+            weight_dict = {
                 key: value for key, value in ckpt.items() if "enc_q" not in key
             }
-        )
+        else:
+            weight_dict = {
+                key: value.half() for key, value in ckpt.items() if "enc_q" not in key
+            }
+
+        opt = OrderedDict(weight=weight_dict)
+
         # Derive the segment size in frames (segment samples divided by hop length)
         segment_size_frames = hps.train.segment_size // hps.data.hop_length
 
