@@ -56,12 +56,16 @@ def extract_model(
 
         opt = OrderedDict(
             weight={
-                key: value.half() for key, value in ckpt.items() if "enc_q" not in key
+                # key: value.half() for key, value in ckpt.items() if "enc_q" not in key
+                key: value for key, value in ckpt.items() if "enc_q" not in key
             }
         )
+        # Derive the segment size in frames (segment samples divided by hop length)
+        segment_size_frames = hps.train.segment_size // hps.data.hop_length
+
         opt["config"] = [
             hps.data.filter_length // 2 + 1,
-            32,
+            segment_size_frames,
             hps.model.inter_channels,
             hps.model.hidden_channels,
             hps.model.filter_channels,

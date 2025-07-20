@@ -551,7 +551,7 @@ class Pipeline:
                 index = big_npy = None
         else:
             index = big_npy = None
-        audio = signal.filtfilt(bh, ah, audio)
+        # audio = signal.filtfilt(bh, ah, audio)
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
         opt_ts = []
         if audio_pad.shape[0] > self.t_max:
