@@ -455,8 +455,6 @@ class RMVPE0Predictor:
                 mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect"
             )
             hidden = self.model(mel)
-                    mel_chunk.shape[-1] % 32 == 0
-                ), "chunk_size must be divisible by 32"
             return hidden[:, :n_frames]
 
     def decode(self, hidden, thred=0.03):
