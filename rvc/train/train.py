@@ -62,6 +62,17 @@ overtraining_threshold = int(sys.argv[14])
 cleanup = strtobool(sys.argv[15])
 vocoder = sys.argv[16]
 checkpointing = strtobool(sys.argv[17])
+# Parse cuDNN benchmark flag (default: True)
+if len(sys.argv) > 18:
+    cudnn_benchmark = bool(strtobool(sys.argv[18]))
+else:
+    cudnn_benchmark = True
+
+# Parse multi-scale mel loss flag (default: True)
+if len(sys.argv) > 19:
+    multiscale_mel_loss = bool(strtobool(sys.argv[19]))
+else:
+    multiscale_mel_loss = True
 # experimental settings
 randomized = True
 optimizer = "AdamW"
@@ -69,7 +80,6 @@ optimizer = "AdamW"
 d_lr_coeff = 1.0
 g_lr_coeff = 1.0
 d_step_per_g_step = 1
-multiscale_mel_loss = False
 
 current_dir = os.getcwd()
 
@@ -117,7 +127,7 @@ print(
 )
 
 torch.backends.cudnn.deterministic = False
-torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = cudnn_benchmark
 
 global_step = 0
 last_loss_gen_all = 0
@@ -365,7 +375,7 @@ def run(
     train_sampler = DistributedBucketSampler(
         train_dataset,
         batch_size * n_gpus,
-        [50, 100, 200, 300, 400, 500, 600, 700, 800, 900],
+        [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100],
         num_replicas=n_gpus,
         rank=rank,
         shuffle=True,
@@ -706,7 +716,11 @@ def train_and_evaluate(
                 _, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
 
             if multiscale_mel_loss:
-                loss_mel = fn_mel_loss(wave, y_hat) * config.train.c_mel / 3.0
+                loss_mel = (
+                    fn_mel_loss(wave, y_hat)
+                    * config.train.c_mel
+                    / 3
+                )
             else:
                 wave_mel = mel_spectrogram_torch(
                     wave.float().squeeze(1),

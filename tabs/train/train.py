@@ -688,6 +688,20 @@ def train_tab():
                         value=False,
                         interactive=True,
                     )
+                    cudnn_benchmark = gr.Checkbox(
+                        label=i18n("cuDNN Benchmark"),
+                        info=i18n("Enable torch.backends.cudnn.benchmark for potentially faster training (non-deterministic)."),
+                        value=True,
+                        interactive=True,
+                    )
+                    multiscale_mel_loss = gr.Checkbox(
+                        label=i18n("Multi-Scale Mel Loss"),
+                        info=i18n(
+                            "Enable multi-scale Mel spectrogram L1 loss for training. Recommended for better audio quality."
+                        ),
+                        value=True,
+                        interactive=True,
+                    )
             with gr.Row():
                 custom_pretrained = gr.Checkbox(
                     label=i18n("Custom Pretrained"),
@@ -807,6 +821,8 @@ def train_tab():
                     d_pretrained_path,
                     vocoder,
                     checkpointing,
+                    cudnn_benchmark,
+                    multiscale_mel_loss,
                 ],
                 outputs=[train_output_info],
             )
