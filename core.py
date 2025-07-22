@@ -491,6 +491,7 @@ def run_train_script(
     sample_rate: int,
     batch_size: int,
     gpu: int,
+    segment_size: int,
     overtraining_detector: bool,
     overtraining_threshold: int,
     pretrained: bool,
@@ -502,6 +503,8 @@ def run_train_script(
     d_pretrained_path: str = None,
     vocoder: str = "HiFi-GAN",
     checkpointing: bool = False,
+    cudnn_benchmark: bool = True,
+    multiscale_mel_loss: bool = True,
 ):
 
     if pretrained == True:
@@ -533,6 +536,7 @@ def run_train_script(
                 gpu,
                 batch_size,
                 sample_rate,
+                segment_size,
                 save_only_latest,
                 save_every_weights,
                 cache_data_in_gpu,
@@ -541,6 +545,8 @@ def run_train_script(
                 cleanup,
                 vocoder,
                 checkpointing,
+                cudnn_benchmark,
+                multiscale_mel_loss,
             ],
         ),
     ]
@@ -1967,6 +1973,13 @@ def parse_arguments():
         default=8,
     )
     train_parser.add_argument(
+        "--segment_size",
+        type=int,
+        help="Segment size (in samples) used during training.",
+        choices=[i for i in range(12800, 51201, 1280)],
+        default=12800,
+    )
+    train_parser.add_argument(
         "--gpu",
         type=str,
         help="GPU device to use for training (e.g., '0').",
@@ -2328,6 +2341,7 @@ def main():
                 sample_rate=args.sample_rate,
                 batch_size=args.batch_size,
                 gpu=args.gpu,
+                segment_size=args.segment_size,
                 overtraining_detector=args.overtraining_detector,
                 overtraining_threshold=args.overtraining_threshold,
                 pretrained=args.pretrained,
@@ -2339,6 +2353,8 @@ def main():
                 d_pretrained_path=args.d_pretrained_path,
                 vocoder=args.vocoder,
                 checkpointing=args.checkpointing,
+                cudnn_benchmark=True,
+                multiscale_mel_loss=True,
             )
         elif args.mode == "index":
             run_index_script(
