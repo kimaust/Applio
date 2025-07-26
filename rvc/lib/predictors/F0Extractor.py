@@ -9,7 +9,7 @@ import torchfcpe
 import os
 
 # from tools.anyf0.rmvpe import RMVPE
-from rvc.lib.predictors.RMVPE import RMVPE0Predictor
+from rvc.lib.predictors.RMVPEV2 import RMVPE0PredictorV2
 from rvc.configs.config import Config
 
 config = Config()
@@ -76,7 +76,7 @@ class F0Extractor:
             )
             f0 = f0.squeeze().cpu().numpy()
         elif method == "rmvpe":
-            model_rmvpe = RMVPE0Predictor(
+            model_rmvpe = RMVPE0PredictorV2(
                 os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
                 device=config.device,
                 # hop_length=80
