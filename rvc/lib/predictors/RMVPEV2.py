@@ -9,7 +9,7 @@ from scipy.ndimage import label
 from librosa.filters import mel
 from typing import List
 
-from pykalman import KalmanFilter
+import torbi
 
 N_MELS = 128
 N_CLASS = 360
@@ -429,7 +429,7 @@ class MelSpectrogram(torch.nn.Module):
         return log_mel_spec
 
 
-class RMVPE0Predictor:
+class RMVPE0PredictorV2:
     """
     A predictor for fundamental frequency (F0) based on the RMVPE0 model.
 
@@ -438,10 +438,7 @@ class RMVPE0Predictor:
         device (str, optional): Device to use for computation. Defaults to None, which uses CUDA if available.
     """
     PRIMES = np.array([1, 3, 5, 7, 11, 13])
-    # bin shift for each prime:  1200·log2(p) cents  →   /20  = bins
-    # [ 0, 60, 95, 140, 169, 220, 246]
     SHIFT = np.round(60 * np.log2(PRIMES)).astype(int)
-    # simple SWIPE′ weights 1/p (others possible)
     WEIGHTS = 1 / PRIMES
 
     def __init__(self, model_path, device=None):
@@ -454,7 +451,7 @@ class RMVPE0Predictor:
         self.resample_kernel = {}
         self.device = device
 
-        self.shifts_int = self.SHIFT.tolist()  # plain Python ints avoid GPU–CPU sync
+        self.shifts_int = self.SHIFT.tolist()
         self.weight_torch = torch.from_numpy(self.WEIGHTS).float().to(self.device)
         self.mel_extractor = MelSpectrogram(
             N_MELS, 16000, 1024, 160, None, 30, 8000
@@ -463,7 +460,6 @@ class RMVPE0Predictor:
         cents_mapping = 20 * np.arange(N_CLASS) + 1997.3794084376191
         self.cents_mapping = np.pad(cents_mapping, (4, 4))
 
-        self._kf_cache = {}
         self._trans = librosa.sequence.transition_local(N_CLASS, width=20, wrap=True)
 
     def mel2hidden(self, mel):
@@ -484,7 +480,6 @@ class RMVPE0Predictor:
     def decode(self, hidden, thred=0.03):
         eps = 1e-12
 
-        # Move hidden to GPU tensor, compute prime-harmonic salience, bring back to CPU numpy for now.
         hidden_t = torch.from_numpy(hidden).to(self.device)
         probs_t = self.prime_harmonic_sum(hidden_t)
         probs = probs_t.cpu().numpy()
@@ -499,15 +494,15 @@ class RMVPE0Predictor:
         probs = probs.T  # (360, n_frames)
 
         # path = librosa.sequence.viterbi(probs, trans)  # (n_frames,)
-        path = librosa.sequence.viterbi_discriminative(probs, self._trans)
+        # path = librosa.sequence.viterbi_discriminative(probs, self._trans)
+        path = self._viterbi_torbi_decode(probs, self._trans)
 
         cents_pred = self.cents_mapping[path + 4]
         f0 = 10 * (2 ** (cents_pred / 1200))
         f0[f0 == 10] = 0
         f0[~voiced_mask] = 0.0
 
-        # f0 = self.smooth_f0_savgol_segments(f0)
-        f0 = self.smooth_f0_kalman(f0)
+        f0 = self.smooth_f0_savgol_segments(f0)
         f0 = self.despike_morph_zero(f0)
         return f0
 
@@ -536,62 +531,31 @@ class RMVPE0Predictor:
         if not voiced.any():
             return f0_out
 
-        # window length (odd, at least poly+2, but no longer than segment)
         win = int(round((win_ms / 1000) * frame_rate)) | 1
-
-        # indices of all voiced frames
         idx = np.flatnonzero(voiced)
 
-        # split into contiguous runs where idx step == 1
         run_starts = np.where(np.diff(idx) > 1)[0] + 1
         runs = np.split(idx, run_starts)
 
         for run in runs:
             if len(run) < poly + 2:
-                # too short for the filter – leave raw
                 continue
-            # must be odd ≤ segment length
             w = min(win, (len(run) | 1))
-            logf = np.log2(f0[run])               # log-Hz
+            logf = np.log2(f0[run])
             smoothed = savgol_filter(logf, w, poly, mode='nearest')
-            f0_out[run] = 2 ** smoothed           # back to Hz
+            f0_out[run] = 2 ** smoothed
 
         return f0_out
-
-    def _get_kf(self, frame_rate, std_freq, std_acc):
-        """Return a cached KalmanFilter or create one if necessary."""
-        key = (frame_rate, std_freq, std_acc)
-        kf = self._kf_cache.get(key)
-        if kf is None:
-            dt = 1.0 / frame_rate
-            kf = KalmanFilter(
-                transition_matrices=[[1, dt], [0, 1]],
-                observation_matrices=[[1, 0]],
-                transition_covariance=np.diag([std_acc ** 2, (std_acc * dt) ** 2]),
-                observation_covariance=np.array([[std_freq ** 2]]),
-                initial_state_covariance=np.diag([1, 1]),
-            )
-            self._kf_cache[key] = kf
-        return kf
-
-    def smooth_f0_kalman(self, f0, frame_rate=100, std_freq=5, std_acc=80):
-        """Kalman smoothing of F0 track using a cached filter."""
-        kf = self._get_kf(frame_rate, std_freq, std_acc)
-        voiced = f0 > 0
-        z = np.where(voiced, f0, 0)  # 0 = unvoiced frames
-        means, _ = kf.em(z, n_iter=5).smooth(z)
-        return np.where(voiced, means[:, 0], 0.0)
 
     def despike_morph_zero(self, f0, min_len=2):
         out = f0.copy()
         voiced_mask = f0 > 0
 
-        # Label each contiguous voiced run: 1, 2, 3, ...
         labels, n_runs = label(voiced_mask)
 
         for lab in range(1, n_runs + 1):
             idx = np.where(labels == lab)[0]
-            if len(idx) < min_len:            # “spike” → set to 0 Hz
+            if len(idx) < min_len:
                 out[idx] = 0.0
 
         return out
@@ -603,6 +567,25 @@ class RMVPE0Predictor:
                 agg[:, :-s] += weight * hidden[:, s:]
 
         return agg
+
+    def _viterbi_torbi_decode(self, probs: np.ndarray, trans: np.ndarray):
+        obs_t = torch.from_numpy(probs.T).float().to(self.device).unsqueeze(0)
+
+        trans_t = torch.from_numpy(trans).float().to(self.device)
+        init_t = torch.full((N_CLASS,), 1.0 / N_CLASS, dtype=torch.float32, device=self.device)
+
+        gpu_id = 0 if self.device is not None and self.device.split(":")[0] == "cuda" else None
+
+        path_t = torbi.from_probabilities(
+            observation=obs_t,
+            # batch_frames=torch.full((1,), seq_len, dtype=torch.int32, device=self.device),
+            transition=trans_t,
+            initial=init_t,
+            log_probs=False,
+            gpu=gpu_id,
+        )
+
+        return path_t[0].cpu().numpy()
 
 
 class BiGRU(nn.Module):
